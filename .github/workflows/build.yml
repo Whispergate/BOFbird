@@ -115,7 +115,13 @@ jobs:
 
       - name: Resolve Go modules
         working-directory: netbird/netbirdd
-        run: go mod tidy
+        run: |
+          # go.mod and go.sum are committed, so download rather than tidy.
+          # tidy would rewrite both files and needs the entire module graph
+          # resolvable, which makes CI depend on unrelated upstream modules.
+          test -f go.mod || { echo "::error::netbirdd/go.mod missing from checkout"; exit 1; }
+          test -f go.sum || { echo "::error::netbirdd/go.sum missing from checkout"; exit 1; }
+          go mod download
 
       - name: Build daemon BOF-PE (c-shared)
         working-directory: netbird/netbirdd
