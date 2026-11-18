@@ -1,0 +1,106 @@
+THIRD-PARTY NOTICES
+===================
+
+BOFbird incorporates or links against the following third-party components.
+Each retains its own license terms as listed below.
+
+
+1. NetBird Client Libraries
+   Source:    https://github.com/netbirdio/netbird
+   Packages: client/embed, client/iface, client/internal, shared/*, encryption/,
+             dns/, route/, stun/, sharedsock/, util/
+   License:  BSD 3-Clause
+
+   Copyright (c) 2022-2026 NetBird GmbH & AUTHORS
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are met:
+
+   1. Redistributions of source code must retain the above copyright notice,
+      this list of conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright notice,
+      this list of conditions and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+
+   3. Neither the name of the copyright holder nor the names of its
+      contributors may be used to endorse or promote products derived from
+      this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+   ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+   LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+   CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+   SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+   INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+   CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+   POSSIBILITY OF SUCH DAMAGE.
+
+   NOTE: The NetBird server components (management/, signal/, relay/, combined/)
+   are licensed under AGPLv3. BOFbird does NOT incorporate or redistribute those
+   components. The netbird-server/ Docker Compose stack runs the official
+   container images unmodified; it does not contain server source code.
+
+
+2. BOF-PE Reference Design / BOFscale
+   Source:    https://github.com/NetSPI/BOF-PE
+              https://github.com/NetSPI/BOFscale
+   Files:     beacon/beacon.h, beacon/beacon.cpp, common/standalone.h,
+              common/standalone.cpp, link.ld, link32.ld, ntdll_x64.lib,
+              ntdll_x86.lib
+   License:   BSD 3-Clause
+
+   Copyright (c) 2026, NetSPI
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are met:
+
+   1. Redistributions of source code must retain the above copyright notice,
+      this list of conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright notice,
+      this list of conditions and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+
+   3. Neither the name of the copyright holder nor the names of its
+      contributors may be used to endorse or promote products derived from
+      this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+   ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+   LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+   CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+   SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+   INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+   CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+   POSSIBILITY OF SUCH DAMAGE.
+
+
+3. Asio (Standalone, Header-Only)
+   Source:    https://github.com/chriskohlhoff/asio
+   Files:     include/asio.hpp, include/asio/
+   License:   Boost Software License 1.0
+
+
+4. jsoncons
+   Source:    https://github.com/danielaparker/jsoncons
+   Files:     include/jsoncons/, include/jsoncons_ext/
+   License:   Boost Software License 1.0
+
+
+5. Microsoft go-winio
+   Source:    https://github.com/Microsoft/go-winio
+   License:   MIT
+
+
+6. formatPE (modified)
+   Source:    https://github.com/HoShiMin/formatPE
+   Files:     loader/Pe.hpp, loader/include/peplus/
+   License:   MIT
+   Note:      Modified by NetSPI for GCC compiler compatibility

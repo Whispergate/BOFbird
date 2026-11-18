@@ -1,0 +1,82 @@
+# Docker Compose stack for self-hosted NetBird.
+# This file runs official NetBird container images (netbirdio/*).
+# The NetBird server components (management, signal, relay) are
+# licensed under AGPLv3 by NetBird GmbH. This compose file does
+# not contain or redistribute their source code.
+# See: https://github.com/netbirdio/netbird/blob/main/management/LICENSE
+
+services:
+
+  management:
+    image: netbirdio/management:latest
+    container_name: netbird-management
+    restart: unless-stopped
+    ports:
+      - '33073:33073'
+    volumes:
+      - './config.yaml:/etc/netbird/management.json'
+      - './management-data:/var/lib/netbird'
+    command: >
+      management
+      --port 33073
+      --config /etc/netbird/management.json
+      --log-level info
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:33073/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - netbird-net
+
+  signal:
+    image: netbirdio/signal:latest
+    container_name: netbird-signal
+    restart: unless-stopped
+    ports:
+      - '10000:10000'
+    command: >
+      --port 10000
+      --log-level info
+    networks:
+      - netbird-net
+
+  relay:
+    image: netbirdio/relay:latest
+    container_name: netbird-relay
+    restart: unless-stopped
+    ports:
+      - '33080:33080'
+    environment:
+      NB_LOG_LEVEL: info
+      NB_LISTEN_ADDRESS: ":33080"
+      NB_EXPOSED_ADDRESS: "rels://${NETBIRD_DOMAIN:-localhost}:443/relay"
+      NB_AUTH_SECRET: "${NETBIRD_RELAY_SECRET:-changeme}"
+    networks:
+      - netbird-net
+
+  coturn:
+    image: coturn/coturn:latest
+    container_name: netbird-coturn
+    restart: unless-stopped
+    ports:
+      - '3478:3478/udp'
+      - '3478:3478/tcp'
+    command: >
+      -n
+      --log-file=stdout
+      --min-port=49152
+      --max-port=65535
+      --listening-port=3478
+      --external-ip=$$(detect-external-ip)
+      --realm=${NETBIRD_DOMAIN:-localhost}
+      --no-tls
+      --no-dtls
+      --no-software-attribute
+      --fingerprint
+    networks:
+      - netbird-net
+
+networks:
+  netbird-net:
+    driver: bridge

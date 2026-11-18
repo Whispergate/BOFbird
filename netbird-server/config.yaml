@@ -1,0 +1,48 @@
+{
+  "Stuns": [
+    {
+      "Proto": "udp",
+      "URI": "stun:${NETBIRD_DOMAIN:-localhost}:3478"
+    }
+  ],
+  "TURNConfig": {
+    "Turns": [
+      {
+        "Proto": "udp",
+        "URI": "turn:${NETBIRD_DOMAIN:-localhost}:3478",
+        "Username": "",
+        "Password": ""
+      }
+    ],
+    "TimeBasedCredentials": false
+  },
+  "Relay": {
+    "Addresses": [
+      "rels://${NETBIRD_DOMAIN:-localhost}:443/relay"
+    ],
+    "CredentialsTTL": "24h",
+    "Secret": "${NETBIRD_RELAY_SECRET:-changeme}"
+  },
+  "Signal": {
+    "Proto": "https",
+    "URI": "${NETBIRD_DOMAIN:-localhost}:443",
+    "GRPCWeb": true
+  },
+  "HttpConfig": {
+    "AuthIssuer": "",
+    "AuthAudience": "",
+    "OIDCConfigEndpoint": ""
+  },
+  "IdpManagerConfig": null,
+  "DeviceAuthorizationFlow": null,
+  "PKCEAuthorizationFlow": null,
+  "DataStoreEncryptionKey": "",
+  "StoreConfig": {
+    "Engine": "sqlite",
+    "DataDir": "/var/lib/netbird/"
+  },
+  "DNSAccountSettings": {
+    "DNSPropagationTimeout": "10s",
+    "DNSResolverAddress": "8.8.8.8:53"
+  }
+}
