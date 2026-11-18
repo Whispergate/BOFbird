@@ -199,3 +199,61 @@ jobs:
         with:
           name: bofbird-dist
           path: dist/
+
+  release:
+    name: Publish prerelease
+    runs-on: ubuntu-latest
+    needs: merge
+    # Pull requests build and merge but never publish.
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: write
+    steps:
+      - name: Download merged dist
+        uses: actions/download-artifact@v7
+        with:
+          name: bofbird-dist
+          path: dist
+
+      - name: Stage release assets
+        run: |
+          set -euo pipefail
+          mkdir -p release stage/x64 stage/x86
+
+          # beacon.dll, loader.exe and netbirdd.exe share a filename across
+          # architectures, so they cannot sit loose in one release directory.
+          # Bundle each architecture instead.
+          cp dist/x64/beacon.dll dist/x64/loader.exe dist/x64/netbirdd.exe stage/x64/
+          cp dist/x86/beacon.dll dist/x86/loader.exe dist/x86/netbirdd.exe stage/x86/
+          ( cd stage/x64 && zip -qr "$GITHUB_WORKSPACE/release/bofbird-x64.zip" . )
+          ( cd stage/x86 && zip -qr "$GITHUB_WORKSPACE/release/bofbird-x86.zip" . )
+
+          # BOF-PE object files are already architecture-suffixed, so they ship
+          # loose. Build-time import libraries (*.dll.a) are not shipped.
+          cp dist/pe/*.o release/
+          cp dist/ost/*.py release/
+
+          ls -la release/
+
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          TAG="build-${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
+
+          # A workflow re-run reuses the run number, so clear any release and
+          # tag left by the previous attempt. Without this the create fails on
+          # an existing tag.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag
+          fi
+
+          # No checkout in this job, so the repository must be named explicitly.
+          gh release create "$TAG" release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "BOFbird build ${GITHUB_RUN_NUMBER} (${SHORT_SHA})" \
+            --prerelease \
+            --generate-notes

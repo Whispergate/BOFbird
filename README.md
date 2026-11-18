@@ -171,9 +171,37 @@ cmake -B build ... -DBUILD_GO_TARGETS=ON
 cmake --build build -j$(nproc)
 ```
 
-## CI
+## CI and Releases
 
-The GitHub Actions workflow (`.github/workflows/build.yml`) cross-compiles both x64 and x86 on push to `main` and uploads the combined `bofbird-dist` artifact.
+The GitHub Actions workflow (`.github/workflows/build.yml`) cross-compiles both x64 and x86 on push to `main`.
+
+| Job | Runner | Produces |
+|---|---|---|
+| `build-cpp` | `ccob/windows-llvm-cross-msvc` container | `beacon.dll`, `loader.exe`, `netbird.{x64,x86}.o`, `portfwd.{x64,x86}.o` |
+| `build-go` | `ubuntu-latest` | `netbirdd.{x64,x86}.o`, `netbirdd.exe` for both architectures |
+| `merge` | `ubuntu-latest` | single combined `dist/` artifact |
+| `release` | `ubuntu-latest` | a prerelease on every push to `main` |
+
+The Go job deliberately runs outside the cross-compile image: Go, CGo and mingw-w64 are all it needs, and that image does not carry the 32-bit mingw toolchain.
+
+### Downloading a build
+
+Every push to `main` publishes a prerelease tagged `build-<run-number>-<short-sha>`, for example `build-42-a1b2c3d`. It is marked as a prerelease so it never becomes the repository's "latest" release.
+
+| Asset | Contents |
+|---|---|
+| `bofbird-x64.zip` | `beacon.dll`, `loader.exe`, `netbirdd.exe` (x64) |
+| `bofbird-x86.zip` | the same three for x86 |
+| `netbird.{x64,x86}.o` | CLI client BOF-PE, one per architecture |
+| `portfwd.{x64,x86}.o` | SOCKS5 port forwarder BOF-PE, one per architecture |
+| `netbirdd.{x64,x86}.o` | daemon BOF-PE, one per architecture |
+| `*_ost_bof.s1.py` | Outflank Stage1 integration scripts |
+
+`beacon.dll`, `loader.exe` and `netbirdd.exe` share a filename across architectures, so they ship inside per-architecture zips rather than loose. Build-time import libraries (`.dll.a`) are not published.
+
+A pull request builds and merges but never publishes. Re-running a workflow replaces that run's existing release, so retries are idempotent.
+
+**Note:** the `release` job requires the whole matrix to succeed. If either architecture fails to build, no release is produced for that push.
 
 ## Self-Hosted NetBird Server
 

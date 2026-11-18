@@ -9,7 +9,7 @@ option(BUILD_GO_TARGETS "Build Go/CGo daemon targets (requires Go toolchain)" ON
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-# LTO disabled — GCC 15 mingw ICEs on heavily-templated asio/jsoncons during LTO
+# LTO disabled: GCC 15 mingw ICEs on heavily-templated asio/jsoncons during LTO
 # set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 
 message("-- Building for ${CMAKE_CXX_COMPILER_ID} compiler")
