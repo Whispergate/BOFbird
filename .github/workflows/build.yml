@@ -1,15 +1,18 @@
 name: BOFbird Build
+
 on:
   push:
     branches: [ main ]
     paths:
       - 'netbird/**'
+      - '.github/workflows/build.yml'
       - '!**/*.md'
       - '!**/*.py'
   pull_request:
     branches: [ main ]
     paths:
       - 'netbird/**'
+      - '.github/workflows/build.yml'
       - '!**/*.md'
       - '!**/*.py'
   workflow_dispatch:
@@ -19,11 +22,13 @@ env:
 
 jobs:
   build-cpp:
-    name: C++ BOF-PE modules (${{ matrix.arch }})
+    name: C++ BOF-PE (${{ matrix.arch }})
     runs-on: ubuntu-latest
     container:
       image: ccob/windows-llvm-cross-msvc:latest
     strategy:
+      # One architecture failing must not cancel the other.
+      fail-fast: false
       matrix:
         include:
           - arch: x86_64
@@ -32,113 +37,131 @@ jobs:
             toolchain: /opt/toolchain/i386-pc-windows-msvc.cmake
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
-          submodules: false   # C++ targets don't need the netbird submodule
+          submodules: false
 
       - name: Mark workspace as safe
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Build
+      - name: Build and install
         working-directory: netbird
-        run: >
-          cmake -B build-${{ matrix.arch }}
-          -DCMAKE_BUILD_TYPE=MinSizeRel
-          -DCMAKE_TOOLCHAIN_FILE=${{ matrix.toolchain }}
-          -DBUILD_GO_TARGETS=OFF &&
-          cmake --build build-${{ matrix.arch }} -j$(nproc) &&
+        run: |
+          cmake -B build-${{ matrix.arch }} \
+            -DCMAKE_BUILD_TYPE=MinSizeRel \
+            -DCMAKE_TOOLCHAIN_FILE=${{ matrix.toolchain }} \
+            -DBUILD_GO_TARGETS=OFF
+          cmake --build build-${{ matrix.arch }} -j$(nproc)
           cmake --install build-${{ matrix.arch }}
 
       - name: Upload C++ artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: bofbird-cpp-${{ matrix.arch }}
           path: netbird/dist/
 
   build-go:
-    name: Go daemon BOF-PE (${{ matrix.arch }})
+    name: Go daemon BOF-PE (${{ matrix.archdir }})
+    # Deliberately NOT in the cross-compile image. Go + CGo + mingw-w64 is all
+    # this needs, and that image does not carry the 32-bit mingw toolchain,
+    # which is what broke the i386 job.
     runs-on: ubuntu-latest
-    container:
-      image: ccob/windows-llvm-cross-msvc:latest
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - arch: x86_64
+          - archdir: x64
             goarch: amd64
             cc: x86_64-w64-mingw32-gcc
-            toolchain: /opt/toolchain/x86_64-pc-windows-msvc.cmake
-            archdir: x64
-          - arch: i386
+            cxx: x86_64-w64-mingw32-g++
+            objdump: x86_64-w64-mingw32-objdump
+          - archdir: x86
             goarch: "386"
             cc: i686-w64-mingw32-gcc
-            toolchain: /opt/toolchain/i386-pc-windows-msvc.cmake
-            archdir: x86
+            cxx: i686-w64-mingw32-g++
+            objdump: i686-w64-mingw32-objdump
     steps:
-      - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+      - name: Checkout (with NetBird submodule)
+        uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - name: Mark workspace as safe
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
       - name: Install Go
         run: |
-          curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tar.gz
-          tar -C /usr/local -xzf /tmp/go.tar.gz
-          rm /tmp/go.tar.gz
+          curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o "$RUNNER_TEMP/go.tar.gz"
+          sudo tar -C /usr/local -xzf "$RUNNER_TEMP/go.tar.gz"
+          rm -f "$RUNNER_TEMP/go.tar.gz"
           echo "/usr/local/go/bin" >> "$GITHUB_PATH"
 
-      - name: Install mingw-w64
+      - name: Install mingw-w64 toolchain
         run: |
-          apt-get update -qq && apt-get install -y -qq gcc-mingw-w64 >/dev/null 2>&1 || true
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-mingw-w64 g++-mingw-w64
+          # Verify rather than assume. A silent install failure here is exactly
+          # what produced a bare "i386 failed" with no compiler error.
+          ${{ matrix.cc }} --version | head -1
+          ${{ matrix.cxx }} --version | head -1
 
-      - name: Go mod tidy
-        working-directory: netbird/netbirdd
-        run: |
-          export PATH="/usr/local/go/bin:$PATH"
-          go mod tidy
-
-      - name: Build beacon dependency
+      - name: Build beacon compatibility layer
         working-directory: netbird
-        run: >
-          cmake -B build-${{ matrix.arch }}
-          -DCMAKE_BUILD_TYPE=MinSizeRel
-          -DCMAKE_TOOLCHAIN_FILE=${{ matrix.toolchain }}
-          -DBUILD_GO_TARGETS=OFF &&
-          cmake --build build-${{ matrix.arch }} --target beacon -j$(nproc)
+        run: |
+          cmake -B build-beacon \
+            -DCMAKE_BUILD_TYPE=MinSizeRel \
+            -DCMAKE_C_COMPILER=${{ matrix.cc }} \
+            -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
+            -DCMAKE_SYSTEM_NAME=Windows \
+            -DBUILD_GO_TARGETS=OFF
+          cmake --build build-beacon --target beacon -j$(nproc)
 
-      - name: Build Go BOF-PE DLL
+      - name: Resolve Go modules
+        working-directory: netbird/netbirdd
+        run: go mod tidy
+
+      - name: Build daemon BOF-PE (c-shared)
         working-directory: netbird/netbirdd
         env:
           GOOS: windows
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "1"
           CC: ${{ matrix.cc }}
-          CGO_CFLAGS: "-I${{ github.workspace }}/netbird/beacon"
-          CGO_LDFLAGS: "-L${{ github.workspace }}/netbird/build-${{ matrix.arch }}/beacon"
+          CXX: ${{ matrix.cxx }}
+          CGO_CFLAGS: -I${{ github.workspace }}/netbird/beacon
+          CGO_LDFLAGS: -L${{ github.workspace }}/netbird/build-beacon/beacon
         run: |
-          export PATH="/usr/local/go/bin:$PATH"
           mkdir -p ../dist/pe ../dist/${{ matrix.archdir }}
-          go build -trimpath -buildmode=c-shared -ldflags="-s -w" -tags "bofpe" \
-            -o ../dist/pe/netbirdd.${{ matrix.archdir }}.o
-          echo "Built netbirdd.${{ matrix.archdir }}.o"
+          go build -trimpath -buildmode=c-shared -ldflags "-s -w" -tags bofpe \
+            -o ../dist/pe/netbirdd.${{ matrix.archdir }}.o .
+          # cgo emits a companion header next to the .o; it is not a runtime
+          # artifact, so keep it out of pe/
+          rm -f ../dist/pe/netbirdd.${{ matrix.archdir }}.h
 
-      - name: Build Go standalone exe
+      - name: Build daemon standalone exe
         working-directory: netbird/netbirdd
         env:
           GOOS: windows
           GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "1"
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
         run: |
-          export PATH="/usr/local/go/bin:$PATH"
-          go build -trimpath -ldflags="-s -w" \
-            -o ../dist/${{ matrix.archdir }}/netbirdd.exe
-          echo "Built netbirdd.exe"
+          go build -trimpath -ldflags "-s -w" \
+            -o ../dist/${{ matrix.archdir }}/netbirdd.exe .
+
+      - name: Verify artifact imports beacon.dll
+        working-directory: netbird
+        run: |
+          ls -la dist/pe/ dist/${{ matrix.archdir }}/
+          ${{ matrix.objdump }} -f dist/pe/netbirdd.${{ matrix.archdir }}.o
+          # A module with no beacon imports never linked the compat layer and
+          # will fault at call time, so treat it as a hard failure.
+          ${{ matrix.objdump }} -p dist/pe/netbirdd.${{ matrix.archdir }}.o \
+            | grep -q "DLL Name: beacon.dll" \
+            || { echo "::error::netbirdd.${{ matrix.archdir }}.o has no beacon.dll imports"; exit 1; }
 
       - name: Upload Go artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: bofbird-go-${{ matrix.arch }}
+          name: bofbird-go-${{ matrix.archdir }}
           path: netbird/dist/
 
   merge:
@@ -147,20 +170,26 @@ jobs:
     needs: [build-cpp, build-go]
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: artifacts
 
       - name: Merge into single dist
         run: |
           mkdir -p dist
-          for d in artifacts/bofbird-*/; do
-            cp -rn "$d"/* dist/ 2>/dev/null || true
+          # Each artifact root is netbird/dist, so merging the artifact
+          # directories merges pe/, x64/, x86/ and ost/. -n keeps the first
+          # copy of any shared file.
+          shopt -s nullglob
+          for d in artifacts/bofbird-*; do
+            [ -d "$d" ] || continue
+            cp -rn "$d"/. dist/
           done
+          echo "=== merged dist ==="
           find dist -type f | sort
 
       - name: Upload merged artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: bofbird-dist
           path: dist/
